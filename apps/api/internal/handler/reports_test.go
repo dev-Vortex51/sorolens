@@ -139,10 +139,10 @@ func TestRenderReportPDFHasValidStructure(t *testing.T) {
 	}
 
 	if !bytes.HasPrefix(body, []byte("%PDF-1.4")) {
-		t.Fatal("missing %PDF header")
+		t.Fatal("missing PDF header")
 	}
 	if !bytes.HasSuffix(body, []byte("%%EOF\n")) {
-		t.Fatal("missing %%EOF trailer")
+		t.Fatal("missing EOF trailer")
 	}
 	if !bytes.Contains(body, []byte("xref")) || !bytes.Contains(body, []byte("startxref")) {
 		t.Fatal("missing cross-reference table")

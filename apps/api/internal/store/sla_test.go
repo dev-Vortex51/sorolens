@@ -76,7 +76,7 @@ func TestComputeMonthlySLAFullUptime(t *testing.T) {
 		t.Fatalf("expected no incidents: %+v", m)
 	}
 	if !m.Healthy() {
-		t.Fatal("100% uptime should pass the 99.9% bar")
+		t.Fatal("100 percent uptime should pass the 99.9 percent bar")
 	}
 	if m.FirstCheck == nil || m.LastCheck == nil {
 		t.Fatal("expected check bounds to be set")
@@ -117,7 +117,7 @@ func TestComputeMonthlySLACountsOneIncidentAndMTTR(t *testing.T) {
 		t.Fatalf("uptime = %v, want 60", m.UptimePct)
 	}
 	if m.Healthy() {
-		t.Fatal("60% uptime must not pass the 99.9% bar")
+		t.Fatal("60 percent uptime must not pass the 99.9 percent bar")
 	}
 }
 
