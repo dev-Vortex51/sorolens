@@ -13,6 +13,7 @@ import type {
   InvocationsResponse,
   MonitoredContract,
   MonitoredContractsResponse,
+  ReportFormat,
   StatsResponse,
   StorageResponse,
   TimeWindow,

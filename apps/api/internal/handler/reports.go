@@ -151,7 +151,7 @@ func (h *Handler) GetContractReport(w http.ResponseWriter, r *http.Request) {
 
 	// Canonical signed payload: identical for every export format.
 	canonical := renderReportText(rep)
-	signature := signReport(h.reportsSigningKey(), canonical)
+	signature := signReport(h.reportsSigningKey(), []byte(canonical))
 	signed := signature != ""
 
 	// The signature travels in a header for every format so a caller can verify
