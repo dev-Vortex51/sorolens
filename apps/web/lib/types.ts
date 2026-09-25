@@ -275,3 +275,18 @@ export interface SubscriptionsResponse {
   subscriptions: AlertSubscription[];
 }
 
+// ---- contract notes --------------------------------------------------------
+
+export interface ContractNote {
+  id: string;
+  contract_id: string;
+  author: string;
+  body: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ContractNotesResponse {
+  notes: ContractNote[];
+}
+

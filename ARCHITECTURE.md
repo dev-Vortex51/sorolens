@@ -342,8 +342,8 @@ keyed by the chi route pattern (`internal/middleware/scopes.go`):
 
 | Scope | Grants |
 |---|---|
-| `read:contracts` | contract, event, invocation, storage, stats, and snapshot reads |
-| `write:contracts` | `POST /api/v1/contracts` |
+| `read:contracts` | contract, event, invocation, storage, stats, snapshot, and note reads |
+| `write:contracts` | `POST /api/v1/contracts` and contract note create/delete |
 | `read:watchdog` | all `/api/v1/watchdog/*` reads |
 | `admin:*` | everything, including API key management |
 
@@ -624,6 +624,53 @@ Network-wide summary across all tracked contracts.
   "indexer_last_run_at": "2026-07-26T10:00:01Z"
 }
 ```
+
+---
+
+### 4.8 Contract notes
+
+Markdown notes captured as institutional knowledge ("this contract was
+migrated from vX on 2026-08-10") and shown on the contract detail page.
+Bodies are stored as markdown and rendered client-side; raw HTML is escaped.
+
+#### `POST /api/v1/contracts/:id/notes`
+
+Create a note. Body: `{ "author": string, "body": string }`. `author`
+defaults to `anonymous`; `body` is required and capped at 10,000 characters.
+
+**Responses:** `201 Created`, `404 Not Found` (unknown contract), `422`
+(missing/oversized fields).
+
+#### `GET /api/v1/contracts/:id/notes`
+
+List a contract's notes, newest first. Optional `limit` (default 100, max
+200).
+
+**Response `200`:**
+```json
+{
+  "notes": [
+    {
+      "id": "note_9f2c...",
+      "contract_id": "CDLZFC3S...",
+      "author": "alice",
+      "body": "Migrated from **v1** on 2026-08-10.",
+      "created_at": "2026-08-10T10:00:00Z",
+      "updated_at": "2026-08-10T10:00:00Z"
+    }
+  ]
+}
+```
+
+**Responses:** `200`, `404 Not Found` (unknown contract).
+
+#### `DELETE /api/v1/contracts/:id/notes/:noteId`
+
+Delete a note scoped to its contract.
+
+**Response `200`:** `{ "deleted": true, "id": "note_9f2c..." }`.
+
+**Responses:** `200`, `404 Not Found` (note does not belong to the contract).
 
 ---
 
