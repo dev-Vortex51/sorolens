@@ -22,6 +22,7 @@ type APIStore interface {
 	store.WatchlistStore
 	store.UserStore
 	store.PerformanceStore
+	store.ContractNoteStore
 	store.GlobalEventStore
 }
 
