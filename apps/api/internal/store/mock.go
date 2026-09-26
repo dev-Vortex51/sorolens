@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"sort"
+	"strings"
 	"time"
 )
 
@@ -25,9 +26,13 @@ type MockStore struct {
 	alertSubscriptions []AlertSubscription
 	users              map[string]User
 	healthScores       map[string]ContractHealthScore
+	failedEvents       map[int64]FailedEvent
+	failedEventSeq     int64
 	indexerCursors     map[string]uint32
 	contractNotes      []ContractNote
 	contractVersions   map[string][]ContractVersion
+	alertGroups        []AlertGroup
+	labels             []Label
 
 	// Error injection
 	UpsertContractErr           error
@@ -49,6 +54,34 @@ type MockStore struct {
 	RecordContractVersionErr    error
 	ListContractVersionsErr     error
 	GetLatestContractVersionErr error
+	InsertFailedEventErr error
+	ListFailedEventsErr  error
+	GetFailedEventErr    error
+	DeleteFailedEventErr error
+}
+
+func (m *MockStore) UpsertLabel(_ context.Context, label Label) error {
+	for i, existing := range m.labels {
+		if existing.Label == label.Label && (label.Public || existing.WorkspaceID == label.WorkspaceID) { m.labels[i] = label; return nil }
+	}
+	m.labels = append(m.labels, label)
+	return nil
+}
+
+func (m *MockStore) ListLabels(_ context.Context, workspaceID, query string) ([]Label, error) {
+	query = strings.ToLower(query)
+	var out []Label
+	for _, label := range m.labels {
+		if !label.Public && label.WorkspaceID != workspaceID { continue }
+		if query == "" || strings.Contains(strings.ToLower(label.Label), query) || strings.Contains(strings.ToLower(label.Value), query) { out = append(out, label) }
+	}
+	return out, nil
+}
+
+func (m *MockStore) ResolveLabel(_ context.Context, workspaceID, query string) (Label, error) {
+	for _, label := range m.labels { if label.Public && strings.EqualFold(label.Label, query) { return label, nil } }
+	for _, label := range m.labels { if !label.Public && label.WorkspaceID == workspaceID && strings.EqualFold(label.Label, query) { return label, nil } }
+	return Label{}, ErrNotFound
 }
 
 // NewMockStore returns an initialized MockStore.
@@ -276,6 +309,9 @@ func (m *MockStore) ListInvocations(_ context.Context, contractID, cursor string
 		if f.Network != "" && inv.Network != f.Network {
 			continue
 		}
+		if f.FunctionName != "" && inv.FunctionName != f.FunctionName {
+			continue
+		}
 		out = append(out, inv)
 		if len(out) > limit {
 			break
@@ -287,6 +323,71 @@ func (m *MockStore) ListInvocations(_ context.Context, contractID, cursor string
 		out = out[:limit]
 	}
 	return out, nextCursor, nil
+}
+
+func (m *MockStore) ListAllInvocations(_ context.Context, cursorLedger uint32, cursorTxHash string, limit int, f InvocationFilters) ([]Invocation, uint32, string, error) {
+	if m.ListInvocationsErr != nil {
+		return nil, 0, "", m.ListInvocationsErr
+	}
+	if limit <= 0 {
+		limit = 50
+	}
+	out := make([]Invocation, 0, len(m.invocations))
+	for _, inv := range m.invocations {
+		if f.ContractID != "" && inv.ContractID != f.ContractID {
+			continue
+		}
+		if f.Network != "" && inv.Network != f.Network {
+			continue
+		}
+		if f.Status != "" && inv.Status != f.Status {
+			continue
+		}
+		if f.FunctionName != "" && inv.FunctionName != f.FunctionName {
+			continue
+		}
+		if f.From != 0 && inv.Ledger < f.From {
+			continue
+		}
+		if f.To != 0 && inv.Ledger > f.To {
+			continue
+		}
+		if f.Since != nil && inv.LedgerClosedAt.Before(*f.Since) {
+			continue
+		}
+		if f.Until != nil && inv.LedgerClosedAt.After(*f.Until) {
+			continue
+		}
+		out = append(out, inv)
+	}
+
+	// Mirror the postgres ordering: newest first, tx_hash as the tie-breaker.
+	sort.SliceStable(out, func(i, j int) bool {
+		if out[i].Ledger != out[j].Ledger {
+			return out[i].Ledger > out[j].Ledger
+		}
+		return out[i].TxHash > out[j].TxHash
+	})
+
+	if cursorLedger != 0 || cursorTxHash != "" {
+		kept := out[:0]
+		for _, inv := range out {
+			if inv.Ledger < cursorLedger || (inv.Ledger == cursorLedger && inv.TxHash < cursorTxHash) {
+				kept = append(kept, inv)
+			}
+		}
+		out = kept
+	}
+
+	var nextLedger uint32
+	var nextTxHash string
+	if len(out) > limit {
+		last := out[limit-1]
+		nextLedger = last.Ledger
+		nextTxHash = last.TxHash
+		out = out[:limit]
+	}
+	return out, nextLedger, nextTxHash, nil
 }
 
 func (m *MockStore) ListStorageEntries(_ context.Context, contractID, cursor string, limit int, f StorageFilters) ([]StorageEntry, string, error) {
@@ -833,3 +934,21 @@ func (m *MockStore) GetLatestContractVersion(_ context.Context, contractID strin
 	return latest, nil
 }
 
+func (m *MockStore) SearchContracts(_ context.Context, query string, limit int) ([]Contract, error) {
+	if query == "" {
+		return []Contract{}, nil
+	}
+	var results []Contract
+	searchPattern := strings.ToLower(query)
+
+	for _, c := range m.contracts {
+		if strings.Contains(strings.ToLower(c.ID), searchPattern) || strings.Contains(strings.ToLower(c.Label), searchPattern) {
+			results = append(results, c)
+			if len(results) >= limit {
+				break
+			}
+		}
+	}
+
+	return results, nil
+}

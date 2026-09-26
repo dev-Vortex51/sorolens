@@ -19,11 +19,14 @@ type APIStore interface {
 	store.HealthScoreStore
 	store.APIKeyStore
 	store.AlertSubscriptionStore
+	store.AlertGroupStore
 	store.WatchlistStore
 	store.UserStore
 	store.PerformanceStore
 	store.ContractNoteStore
+	store.FailedEventStore
 	store.GlobalEventStore
+	store.LabelStore
 }
 
 // Pinger is implemented by both the postgres pool and the Redis client.
@@ -52,6 +55,11 @@ type Handler struct {
 	// SlackSigningSecret verifies Slack slash command requests (issue #127).
 	// Empty disables the Slack command endpoint.
 	SlackSigningSecret string
+
+	// ReportSigningKey signs exported SLA reports (issue #266). When empty the
+	// reporting handlers fall back to REPORT_SIGNING_KEY; with neither set the
+	// reports are emitted unsigned and every response says so.
+	ReportSigningKey string
 
 	// summaryCacheOnce guards lazy construction of summaryCache, the
 	// process-wide memo for composite per-contract dashboard summaries.
